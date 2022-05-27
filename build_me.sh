@@ -14,10 +14,10 @@ then
 		echo "Required argument: AssayDev or dx"
 		exit 1
 	else
-		build_target_props="mode=dx;for_dx=1;for_${target_version}=1"
+		build_target_props="multi=abc;multi=def;multi=xyz;mode=dx;for_dx=1;for_${target_version}=1"
 	fi
 else
-	build_target_props="mode=assaydev;for_assaydev=1;for_${target_version}=1"
+	build_target_props="multi=abc;multi=def;multi=xyz;mode=assaydev;for_assaydev=1;for_${target_version}=1"
 fi
 
 if [ "x${repack}" != "xfalse" ]
