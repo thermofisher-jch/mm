@@ -1,16 +1,43 @@
 #!/bin/bash
 
+# This variant uses mode and target version to identify which output version it is
+# meant to build for tagging, and it also applies the version number change by
+# repackaging the debian artifact if is third argument is absent or "true", and
+# leaves it as-is if that argument is "false".
+mode="${1}"
+target_version="${2}"
+repack="${3}"
+if [ "x${mode}" != "xAssayDev" ]
+then
+	if [ "x${mode}" != "xdx" ]
+	then
+		echo "Required argument: AssayDev or dx"
+		exit 1
+	else
+		build_target_props="mode=dx;for_dx=1;for_${target_version}=1"
+	fi
+else
+	build_target_props="mode=assaydev;for_assaydev=1;for_${target_version}=1"
+fi
+
+if [ "x${repack}" != "xfalse" ]
+then
+	if [ "x${repack}" != "xtrue" ]
+	then
+		if [ "x${repack}" == "x" ]
+		then
+			repack="true"
+		else
+			echo "Repack must be absent, true, or false"
+			exit 2
+		fi
+	fi
+fi
+
 # The model
 history="./hist_size.csv"
 state_now="./state_now.dat"
 artifact_names="./artifact_names.dat"
-
-
-# Strip csd-genexus- and psuedo- prefixes away from working directory name
-# to get the artifact name of project being build
-# basedir="$(basename "$(pwd)")"
-# artifact="$(echo "${basedir}" | sed 's/csd-genexus-//' | sed 's/pseudo-//')"
-# echo "${artifact}"
 
 # Inspect checked in state file to understand what version we are pretending
 # to be building a component of the bundle for.
@@ -18,7 +45,9 @@ state_now="$(cat state_now.dat)"
 echo "${state_now}"
 
 build_num="${BUILD_NUMBER}"
-build_date="$(date +%Y%m%d%H%M)"
+# build_date="$(date +%Y%m%d%H%M)"
+build_date="$(("$(date +%s)" / 20))"
+
 
 cat > uploadBuildSpec.json << EOF
 {
@@ -36,17 +65,17 @@ do
 	do
 		echo "${line}"
 		match_to="$(echo $line | awk -F, '{print $8}')"
-		echo "${match_to}"
-		if [[ "${match_to}" == "${state_now}" ]]
+		mode_to="$(echo $line | awk -F, '{print $10}')"
+		echo "${match_to} ${mode_to}"
+		if [ "${match_to}" == "${state_now}" -a "${mode}" == "${mode_to}" ]
 		then
 			artifact_found=1
 			url="$(echo "${line}" | awk -F, '{ print "http://lemon.itw/"$4"/TSDx/"$10"/updates/"$1"_"$2"_"$3".deb" }')"
 			wget "${url}"
 			file="$(basename "${url}")"
-			mode="$(echo $line | awk -F, '{print $10}')"
 			architecture="$(echo $line | awk -F, '{print $3}')"
 			version="$(echo $line | awk -F, '{print $2}')"
-			if [[ "$(echo "${artifact}" | head -3c)" == "ts-" ]]
+			if [ "x${repack}" == "xtrue" ]
 			then
 				version="$(echo "${version}" | awk -F. '{print $1"."$2"."$3}')"
 				version="${version}-${build_num}+${build_date}"
@@ -59,7 +88,7 @@ do
 				rm -rf temp
 			fi
 
-			if [[ "${first_line}" -eq 0 ]]
+			if [ "${first_line}" -eq 0 ]
 			then
 				echo "," >> uploadBuildSpec.json
 			else
@@ -68,14 +97,14 @@ do
 			cat >> uploadBuildSpec.json << EOF
         {
             "pattern": "./${file}",
-	    "target": "csd-genexus-debian-dev/pool/main/${artifact}/${file}",
-            "props": "mode=${mode};deb.distribution=bionic;deb.component=main;deb.architecture=${architecture}"
+	    "target": "csd-genexus-debian-dev/builds/${artifact}/${file}",
+            "props": "deb.distribution=bionic;deb.component=main;deb.architecture=${architecture};${build_target_props}"
         }
 EOF
 			break
 		fi
 	done
-	if [[ "${artifact_found}" -eq 0 ]]
+	if [ "${artifact_found}" -eq 0 ]
 	then
 		echo "artifact ${artifact} not found"
 		exit 1
