@@ -1,18 +1,26 @@
 #!/bin/bash
 
-# The model
-history="./hist_size.csv"
-state_now="./state_now.dat"
-artifact_names="./artifact_names.dat"
-
+# This variant uses mode and target version to identify which output version it is
+# meant to build for tagging, and it also applies the version number change by
+# repackaging the debian artifact.
 mode="${1}"
+target_version="${2}"
 if [[ "x${mode}" != "xAssayDev" ]]
 	if [[ "x${mode}" != "xdx" ]]
 	then
 		echo "Required argument: AssayDev or dx"
 		exit 1
+	else
+		build_target_props="mode=dx;for_dx=1;for_${target_version}=1"
 	fi
+else
+	build_target_props="mode=assaydev;for_assaydev=1;for_${target_version}=1"
 fi
+
+# The model
+history="./hist_size.csv"
+state_now="./state_now.dat"
+artifact_names="./artifact_names.dat"
 
 # Inspect checked in state file to understand what version we are pretending
 # to be building a component of the bundle for.
@@ -20,7 +28,9 @@ state_now="$(cat state_now.dat)"
 echo "${state_now}"
 
 build_num="${BUILD_NUMBER}"
-build_date="$(date +%Y%m%d%H%M)"
+# build_date="$(date +%Y%m%d%H%M)"
+build_date="$(("$(date +%s)" / 20))"
+
 
 cat > uploadBuildSpec.json << EOF
 {
@@ -72,7 +82,7 @@ do
         {
             "pattern": "./${file}",
 	    "target": "csd-genexus-debian-dev/pool/main/${artifact}/${file}",
-            "props": "mode=${mode};deb.distribution=bionic;deb.component=main;deb.architecture=${architecture}"
+            "props": "deb.distribution=bionic;deb.component=main;deb.architecture=${architecture};${build_target_props}"
         }
 EOF
 			break
